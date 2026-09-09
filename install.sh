@@ -10,8 +10,7 @@ usage() {
 $PROG - turn this Linux box into a Bluetooth receiver for phone audio.
 
 Your iPhone or Android pairs to the PC over Bluetooth, and all its audio
-plays through the PC's speakers or headset. This is the reliable path:
-no Wi-Fi, no AirPlay, no firewall games.
+plays through the PC's speakers or headset. Simple and reliable.
 
 Options:
   --name NAME        Friendly name phones see when pairing (default: hostname)

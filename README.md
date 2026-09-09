@@ -2,7 +2,7 @@
 
 Turn any Linux desktop or server into a **Bluetooth audio receiver**, so all
 audio from your iPhone (or Android) plays through your PC's speakers or
-headset. Bluetooth only — nothing to do with Wi-Fi, AirPlay, or the network.
+headset. That's the whole job: pair your phone, press play.
 
 This is the battle-tested recipe from a real Fedora/Nobara session that fixed
 the dreaded **MediaTek / Filogic (MT7921) A2DP disconnect bug**, where a phone
@@ -33,7 +33,6 @@ adapter a friendly name, and prints pairing instructions.
 | bluez | The BlueZ Bluetooth stack |
 | `/etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf` | The A2DP stability fix (see below) |
 | `bluetoothctl system-alias` | Friendly adapter name your phone sees |
-| avahi is *not* needed | Bluetooth pairing works with zero network config |
 
 ## How to connect
 
@@ -50,7 +49,7 @@ adapter a friendly name, and prints pairing instructions.
 
 ## The fix this repo exists for
 
-On MT7921/Filogic 3300 Wi-Fi/Bluetooth combo cards, upstream BlueZ hands A2DP
+On MT7921/Filogic 3300 combo cards, upstream BlueZ hands A2DP
 playback off to the card's DSP. The card misreports stream completion, so
 BlueZ kills the link and the phone disconnects seconds after you press play
 (`Missing completion reports for packet`, then `org.bluez.Error.NotAuthorized`).
