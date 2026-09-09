@@ -47,6 +47,21 @@ adapter a friendly name, and prints pairing instructions.
 1. **Settings → Bluetooth**, tap your PC's name, confirm "Pair".
 2. Play anything. Audio lands on the PC's default output.
 
+## AirPods-style microphone (calls)
+
+The PC exposes itself as a real Bluetooth headset, so on **phone calls** your
+**PC's microphone becomes the phone's mic** — speakers hear your PC mic, and
+the caller's voice plays through your PC speakers. Music still plays through
+A2DP at full quality; the mic path only activates during calls.
+
+Two things to know:
+
+- Call audio uses the HFP profile: 16 kHz mono, phone-call quality. Call
+  someone to test: during the call, your PC mic should be live.
+- You must be connected with `bluez5.roles = [ a2dp_sink hfp_hf ]` (already
+  written by the installer). During a call, check `wpctl status` — a
+  BlueZ source appears alongside the phone device.
+
 ## The fix this repo exists for
 
 On MT7921/Filogic 3300 combo cards, upstream BlueZ hands A2DP

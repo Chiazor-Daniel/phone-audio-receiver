@@ -36,6 +36,17 @@ done
 log() { printf '\033[1;34m->\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*"; }
 
+restart_user_services() {
+  local target="${SUDO_USER:-}"
+  [[ -n "$target" && "$target" != "root" ]] || target="${USER:-}"
+  [[ -n "$target" && "$target" != "root" ]] || return 1
+  local uid
+  uid="$(id -u "$target" 2>/dev/null || true)"
+  [[ -n "$uid" ]] || return 1
+  sudo -u "$target" env XDG_RUNTIME_DIR="/run/user/$uid" \
+    systemctl --user restart wireplumber pipewire
+}
+
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
     printf '   (dry) %s\n' "$*"
@@ -90,16 +101,20 @@ bt_receiver_setup() {
     local wpl_dir="/etc/wireplumber/wireplumber.conf.d"
     run mkdir -p "$wpl_dir"
     run tee "$wpl_dir/51-bluetooth-fix.conf" >/dev/null <<'CONF'
-# phone-audio-receiver: BlueZ A2DP stability fixes (helps MediaTek/Filogic cards)
+# phone-audio-receiver: BlueZ A2DP stability + HFP (AirPods-like mic) config
 monitor.bluez.properties = {
   bluez5.hw-offload-datapath = false
   bluez5.enable-hw-volume = false
+  bluez5.enable-hfphsp = true
+  bluez5.roles = [ a2dp_sink hfp_hf ]
 }
 wireplumber.settings = {
   bluetooth.autoswitch-to-headset-profile = false
 }
 CONF
-    run systemctl --user restart wireplumber pipewire || true
+    if [[ $DRY_RUN -eq 0 ]]; then
+      restart_user_services || warn "restart wireplumber/pipewire manually after this install"
+    fi
   elif command -v pactl >/dev/null 2>&1; then
     log "Applying the Bluetooth fix for PulseAudio"
     pkg_install pulseaudio-module-bluetooth || pkg_install pulseaudio-modules-bt \
@@ -129,6 +144,9 @@ Android: Settings -> Bluetooth -> tap "$DEVICE_NAME" -> Pair, then play.
 If it ever pairs but disconnects the moment you press play, the fix is
 already installed at:
   /etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf
+
+Calls: during a phone call your PC's microphone is the phone's mic
+(AirPods-style, via HFP). See README.md for details.
 
 Check with:  wpctl status     (PipeWire) / pactl list sinks (PulseAudio)
 See README.md for troubleshooting.
