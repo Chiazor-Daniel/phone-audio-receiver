@@ -1,36 +1,28 @@
 # phone-audio-receiver
 
-Turn any Linux desktop or server into a **phone audio receiver**, so all audio
-from your iPhone (or Android phone) plays through your PC's speakers or headset
-in about a minute.
+Turn any Linux desktop or server into a **Bluetooth audio receiver**, so all
+audio from your iPhone (or Android) plays through your PC's speakers or
+headset. Bluetooth only — nothing to do with Wi-Fi, AirPlay, or the network.
 
-This is the battle-tested recipe from a real Fedora/Nobara session that fixed:
-
-- AirPlay audio via **shairport-sync** (PipeWire/pulse as output backend)
-- Bluetooth A2DP receive, and the nasty **MediaTek / Filogic (MT7921) A2DP
-  disconnect bug** — where a phone pairs fine but drops mid-playback (`Missing
-  completion reports for packet`, BlueZ `NotAuthorized` errors)
-- Wi-Fi power-save stutter and firewall/mDNS blocks that make AirPlay
-  receivers invisible to iPhones
+This is the battle-tested recipe from a real Fedora/Nobara session that fixed
+the dreaded **MediaTek / Filogic (MT7921) A2DP disconnect bug**, where a phone
+pairs fine but drops mid-playback with `Missing completion reports for packet`
+and `org.bluez.Error.NotAuthorized` firmware errors.
 
 ## Quick start
 
 ```bash
-sudo ./install.sh --name "Bedroom"
+sudo ./install.sh --name "Living Room"
 ```
 
-The script detects your distro and does everything: installs the receivers,
-applies the MediaTek BlueZ fix, opens the firewall, enables mDNS, and turns off
-Wi-Fi power save.
+That's it: installs/enables BlueZ, applies the A2DP stability fix, gives the
+adapter a friendly name, and prints pairing instructions.
 
 ### Options
 
 | Flag | Meaning |
 | --- | --- |
-| `--name "My PC"` | Friendly name phones see (default: hostname) |
-| `--no-airplay` | Only Bluetooth receive, skip shairport-sync |
-| `--mirror` | Also install UxPlay for iPhone screen mirroring (where packaged) |
-| `--no-wifi-fix` | Leave Wi-Fi power save alone |
+| `--name "My PC"` | Friendly name phones see when pairing (default: hostname) |
 | `--dry-run` | Show every action without changing anything |
 | `-h`, `--help` | Help |
 
@@ -38,57 +30,33 @@ Wi-Fi power save.
 
 | Piece | Purpose |
 | --- | --- |
-| shairport-sync | AirPlay audio receiver for iPhone/iPad/Mac streaming |
-| BlueZ + WirePlumber fix | BlueZ A2DP stability fixes in `/etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf` |
-| firewalld/ufw ports | mDNS (5353/udp), AirPlay (5000/tcp, 6000-6010/udp, 7000/tcp+udp) |
-| avahi-daemon | Lets your phone find the receiver over the network |
-| `iw power_save off` | Reduces audio latency and dropouts on Wi-Fi |
-
-## Supported distros
-
-| Distro | Package manager | AirPlay | UxPlay mirror |
-| --- | --- | --- | --- |
-| Fedora / Nobara / RHEL / CentOS | dnf | yes | yes (via COPR) |
-| Ubuntu / Debian / Mint / Pop!_OS | apt | yes | no (build from source) |
-| Arch / Manjaro / EndeavourOS | pacman | yes | AUR |
-| openSUSE | zypper | yes | no (build from source) |
+| bluez | The BlueZ Bluetooth stack |
+| `/etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf` | The A2DP stability fix (see below) |
+| `bluetoothctl system-alias` | Friendly adapter name your phone sees |
+| avahi is *not* needed | Bluetooth pairing works with zero network config |
 
 ## How to connect
 
-### iPhone → AirPlay (audio, best quality)
+### iPhone
 
-1. Make sure the phone and PC are on the same Wi-Fi network.
-2. Control Center → long-press the **volume** slider → tap the **AirPlay** icon.
-3. Select your PC's name. Audio now streams to the PC's default output.
+1. **Settings → Bluetooth** and tap your PC's name to pair (enter the
+   on-screen code if asked).
+2. Play anything. All phone audio — every app — routes to the PC's output.
 
-### iPhone / Android → Bluetooth
+### Android
 
-1. On the phone, open Bluetooth settings and pair with the PC's name.
-2. Play anything — phone audio plays through the PC's output.
+1. **Settings → Bluetooth**, tap your PC's name, confirm "Pair".
+2. Play anything. Audio lands on the PC's default output.
 
-### iPhone → screen mirroring
+## The fix this repo exists for
 
-Required: `--mirror` and UxPlay built/packaged for your distro (Fedora COPR
-`fdh2/uxplay`; elsewhere build from
-[UxPlay](https://github.com/FDH2/UxPlay)). Then run:
-
-```bash
-uxplay -vs 0 -nh -n "My PC" &
-```
-
-Video mirrors to your screen and all phone audio follows. Note: default
-latency works best; `-al 0.08` (80 ms) is a small reduction if speakers vs
-screen sync allows it, but forcing `sync=false/async=false` in the pipeline
-causes clock drift stutter (`invalid ntp_time < gst_audio_pipeline_base_time`).
-
-## The MediaTek A2DP bug this fixes
-
-On MT7921/Filogic 3300 Wi-Fi/Bluetooth combo cards, upstream BlueZ hands
-A2DP playback off to the card's DSP. The card misreports stream completion,
-so BlueZ kills the link and the phone disconnects seconds after you press play
-(firmware reports like `Missing completion reports for packet`, followed by
-`org.bluez.Error.NotAuthorized`). The fix disables the offload data path and
-the automatic A2DP ↔ HFP profile switch that races your audio session:
+On MT7921/Filogic 3300 Wi-Fi/Bluetooth combo cards, upstream BlueZ hands A2DP
+playback off to the card's DSP. The card misreports stream completion, so
+BlueZ kills the link and the phone disconnects seconds after you press play
+(`Missing completion reports for packet`, then `org.bluez.Error.NotAuthorized`).
+Automatic A2DP ↔ HFP profile switching makes it worse, racing your audio
+session. The fix forces software decoding, disables phone-side volume
+pass-through for stability, and stops the profile switch:
 
 ```ini
 monitor.bluez.properties = {
@@ -100,33 +68,37 @@ wireplumber.settings = {
 }
 ```
 
-Keep `bluez5.enable-hw-volume = true` if you prefer adjusting volume from the
-phone rather than the PC. The same file lives in
-[`configs/51-bluetooth-fix.conf`](configs/51-bluetooth-fix.conf) for manual
-install.
+Turn `bluez5.enable-hw-volume` back to `true` if you prefer volume control on
+your phone. Same file for manual install:
+[`configs/51-bluetooth-fix.conf`](configs/51-bluetooth-fix.conf).
 
 ## Troubleshooting
 
-- **Phone never sees the receiver** → check avahi: `systemctl status avahi-daemon`;
-  confirm both devices are on the same network; if a firewall is active, ensure
-  mDNS (5353/udp) is open.
-- **Stream stutters** → turn Wi-Fi power save off:
-  `sudo iw dev wlo1 set power_save off`.
-- **Bluetooth pairs but drops when playing** → the MediaTek fix above. After
-  editing the config: `systemctl --user restart wireplumber`.
-- **AirPlay works but mirroring doesn't** → UxPlay needs ports 7000/7001 open
-  and `-nh` (no hardware overlay) for Wayland.
+- **Pairs but disconnects when playing** → the fix above. After changing it:
+  `systemctl --user restart wireplumber`.
+- **Phone shows no audio output** → check the sink: `wpctl status`
+  (PipeWire) or `pactl list sinks` (PulseAudio).
+- **No A2DP option, only phone-call audio** → the profile auto-switch is on;
+  your fix file is missing or not being read. Confirm the path matches
+  `/etc/wireplumber/wireplumber.conf.d/`.
+- **Want reset pairing** → `bluetoothctl remove <phone-mac>` then pair again.
+
+## Supported distros
+
+| Distro | Package manager |
+| --- | --- |
+| Fedora / Nobara / RHEL / CentOS | dnf |
+| Ubuntu / Debian / Mint / Pop!_OS | apt |
+| Arch / Manjaro / EndeavourOS | pacman |
+| openSUSE | zypper |
 
 ## Uninstall
 
 ```bash
-sudo rm -f /etc/shairport-sync.conf.phone-audio.bak
-sudo shairport-sync -k            # or: sudo systemctl disable --now shairport-sync
 sudo rm -f /etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf
 sudo systemctl --user restart wireplumber pipewire
-sudo firewall-cmd --permanent --remove-port=5000/tcp \
-  --remove-port=6000-6010/udp --remove-port=7000/tcp --remove-port=7000/udp
-sudo firewall-cmd --reload
+sudo systemctl disable --now bluetooth   # only if you didn't need it before
+sudo bluetoothctl system-alias ""        # reset the adapter name
 ```
 
 ## License
