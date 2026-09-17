@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+; phone-audio-receiver: Windows Bluetooth Audio Stability Fix
+; Prevents aggressive Bluetooth power-saving selective suspend which causes
+; audio stutter and dropouts on MediaTek (MT7921/RZ608), Realtek, and Intel adapters.
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters]
+"SystemRemoteWakeSupported"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\238C7A80-46D4-4192-B707-0C9BF773BA46]
+; Enable Bluetooth Power Management configuration visibility if hidden
+"Attributes"=dword:00000002
