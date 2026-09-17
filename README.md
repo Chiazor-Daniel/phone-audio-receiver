@@ -1,24 +1,138 @@
 # phone-audio-receiver
 
-Turn any Linux desktop or server into a **Bluetooth audio receiver**, so all
-audio from your iPhone (or Android) plays through your PC's speakers or
-headset. That's the whole job: pair your phone, press play.
+Turn any PC (Windows or Linux) into a high-quality **Bluetooth audio receiver**, so all audio from your iPhone (or Android) plays seamlessly through your computer's speakers or headset. Supports **multiple devices streaming at the same time**. Pair your phone, press play.
 
-This is the battle-tested recipe from a real Fedora/Nobara session that fixed
-the dreaded **MediaTek / Filogic (MT7921) A2DP disconnect bug**, where a phone
-pairs fine but drops mid-playback with `Missing completion reports for packet`
-and `org.bluez.Error.NotAuthorized` firmware errors.
+This project also includes battle-tested fixes for the dreaded **MediaTek / Filogic (MT7921 / RZ608) A2DP disconnect and stutter bug** on both Windows and Linux.
 
-## Quick start
+---
+
+## Choose Your Platform
+
+- **[Windows (PowerShell)](#windows-powershell)**
+- **[Linux (Bash)](#linux-bash)**
+
+---
+
+## Windows (PowerShell)
+
+Built natively for **Windows 10 (Version 2004 / Build 19041+)** and **Windows 11** using Windows Runtime (`Windows.Media.Audio.AudioPlaybackConnection`) and PowerShell. Supports **simultaneous multi-device audio streaming**.
+
+### Windows Quick Start
+
+1. Run the one-time setup (in PowerShell as Administrator):
+
+   - **From the project folder:**
+
+     ```powershell
+     .\windows\Receiver.ps1 install
+     ```
+
+     *(Be sure to include the `.\` prefix)*
+
+   - **From ANY folder or path:**
+
+     ```powershell
+     & "$HOME\Desktop\Projects\phone-audio-receiver\windows\Receiver.ps1" install
+     ```
+
+   *Configures Bluetooth services, applies driver stability and audio quality fixes, installs the script standalone to `%LOCALAPPDATA%\PhoneAudioReceiver`, and creates the global `par` command.*
+
+2. Open a **new terminal** and start streaming:
+
+   ```powershell
+   par start
+   ```
+
+3. On your **iPhone or Android**, go to **Settings → Bluetooth**, tap your PC's name, and pair.
+4. Press play on your phone! All audio now streams through your PC speakers.
+5. Connect **additional phones** — they all stream simultaneously.
+
+> **Tip:** `par start` runs in the background and survives closing the terminal. Use `par stop` when you're done.
+
+---
+
+### The `par` Command
+
+After running `install`, the `par` command is available **globally from any directory** — no need to navigate to the project folder.
+
+| Goal | Command |
+| --- | --- |
+| **Start streaming (background)** | `par start` |
+| **Start streaming (foreground with live output)** | `par start -Interactive` |
+| **Stop streaming** | `par stop` |
+| **Check receiver status** | `par status` |
+| **List currently connected Bluetooth audio devices** | `par list` |
+| **Enable automatic start on PC boot** | `par install -Startup` |
+| **Uninstall and clean up** | `par uninstall` |
+
+> You can also call the script directly with `.\windows\Receiver.ps1 [action]` if you prefer.
+
+---
+
+### Multi-Device Streaming
+
+The receiver automatically connects to **all Bluetooth audio devices** that are currently paired and in range. Multiple phones can stream audio to your PC at the same time.
+
+- Only **actively connected** devices are tracked — previously paired devices that are out of range or powered off are ignored.
+- If a device disconnects, the receiver automatically attempts recovery before dropping it.
+- New devices are discovered every ~15 seconds without disrupting active streams.
+
+---
+
+### The Windows MediaTek (MT7921) Stability Fix
+
+On Windows, combo Wi-Fi 6/Bluetooth cards (like the MediaTek MT7921, Filogic 3300, and AMD RZ608) often suffer from aggressive USB/PCIe **Selective Suspend**. Windows puts the Bluetooth radio into a low-power sleep state during brief playback pauses, resulting in audio stutter or dropping the connection with the phone.
+
+`par install` applies:
+
+- **Registry stability parameters** (located in [`windows/configs/MediaTek-Windows-Fix.reg`](windows/configs/MediaTek-Windows-Fix.reg)) to keep the Bluetooth radio awake.
+- **USB Selective Suspend disable** on all Bluetooth adapters to prevent audio crackling.
+- **Bluetooth power plan optimization** for high-performance audio.
+
+---
+
+### Calls & Microphone on Windows
+
+When your phone is paired to Windows over Bluetooth, call audio and microphone routing can be handled in two ways:
+
+1. **Windows Phone Link (Link to Windows)**: The recommended Microsoft experience. Allows answering phone calls directly on your PC using your PC's microphone and speakers.
+2. **Bluetooth Handsfree Telephony**: In Windows Control Panel (*Devices and Printers* → Your Phone → *Properties* → *Services* tab), ensure **Handsfree Telephony** is checked if you want Windows to expose headset call endpoints.
+
+---
+
+### Windows Troubleshooting
+
+- **Phone is paired but audio doesn't play**:
+  Run `par start` to open the audio stream. Windows does not auto-route Bluetooth audio without an active receiver connection.
+- **Audio crackling or stutter**:
+  Ensure you ran `par install` (as Administrator) to apply the power management and selective suspend fixes.
+- **`par` command not found**:
+  Open a **new terminal** after running `install`. The command is added to your user PATH during installation.
+- **Only one device plays audio**:
+  Make sure all devices are paired and their Bluetooth is on. Run `par list` to verify which devices are detected. The receiver connects to all available devices automatically.
+- **Wrong output speakers**:
+  Windows routes incoming audio to your system's default audio output device. Check **Settings → System → Sound** to ensure your preferred speakers or headset are set as default.
+- **Uninstalling**:
+
+  ```powershell
+  par uninstall
+  ```
+
+---
+
+## Linux (Bash)
+
+Supports Fedora/Nobara, Ubuntu/Debian, Arch, and openSUSE with PipeWire/WirePlumber or PulseAudio.
+
+### Linux Quick Start
 
 ```bash
-sudo ./install.sh --name "Living Room"
+sudo ./linux/install.sh --name "Living Room"
 ```
 
-That's it: installs/enables BlueZ, applies the A2DP stability fix, gives the
-adapter a friendly name, and prints pairing instructions.
+Installs/enables BlueZ, applies the PipeWire A2DP stability fix, assigns a friendly adapter name, and configures the audio sink.
 
-### Options
+#### Options
 
 | Flag | Meaning |
 | --- | --- |
@@ -26,94 +140,44 @@ adapter a friendly name, and prints pairing instructions.
 | `--dry-run` | Show every action without changing anything |
 | `-h`, `--help` | Help |
 
-## What it sets up
+---
 
-| Piece | Purpose |
-| --- | --- |
-| bluez | The BlueZ Bluetooth stack |
-| `/etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf` | The A2DP stability fix (see below) |
-| `bluetoothctl system-alias` | Friendly adapter name your phone sees |
+### The Linux MediaTek (MT7921) Fix
 
-## How to connect
+On MT7921/Filogic cards, upstream BlueZ hands A2DP playback off to the card's DSP, which misreports stream completion and causes BlueZ to disconnect. The fix forces software decoding, disables hardware volume pass-through for stability, and stops profile autoswitching.
 
-### iPhone
-
-1. **Settings → Bluetooth** and tap your PC's name to pair (enter the
-   on-screen code if asked).
-2. Play anything. All phone audio — every app — routes to the PC's output.
-
-### Android
-
-1. **Settings → Bluetooth**, tap your PC's name, confirm "Pair".
-2. Play anything. Audio lands on the PC's default output.
-
-## AirPods-style microphone (calls)
-
-The PC exposes itself as a real Bluetooth headset, so on **phone calls** your
-**PC's microphone becomes the phone's mic** — speakers hear your PC mic, and
-the caller's voice plays through your PC speakers. Music still plays through
-A2DP at full quality; the mic path only activates during calls.
-
-Two things to know:
-
-- Call audio uses the HFP profile: 16 kHz mono, phone-call quality. Call
-  someone to test: during the call, your PC mic should be live.
-- You must be connected with `bluez5.roles = [ a2dp_sink hfp_hf ]` (already
-  written by the installer). During a call, check `wpctl status` — a
-  BlueZ source appears alongside the phone device.
-
-## The fix this repo exists for
-
-On MT7921/Filogic 3300 combo cards, upstream BlueZ hands A2DP
-playback off to the card's DSP. The card misreports stream completion, so
-BlueZ kills the link and the phone disconnects seconds after you press play
-(`Missing completion reports for packet`, then `org.bluez.Error.NotAuthorized`).
-Automatic A2DP ↔ HFP profile switching makes it worse, racing your audio
-session. The fix forces software decoding, disables phone-side volume
-pass-through for stability, and stops the profile switch:
+The configuration file is installed to `/etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf` (source: [`linux/configs/51-bluetooth-fix.conf`](linux/configs/51-bluetooth-fix.conf)):
 
 ```ini
 monitor.bluez.properties = {
   bluez5.hw-offload-datapath = false
   bluez5.enable-hw-volume = false
+  bluez5.enable-hfphsp = true
+  bluez5.roles = [ a2dp_sink hfp_hf ]
 }
 wireplumber.settings = {
   bluetooth.autoswitch-to-headset-profile = false
 }
 ```
 
-Turn `bluez5.enable-hw-volume` back to `true` if you prefer volume control on
-your phone. Same file for manual install:
-[`configs/51-bluetooth-fix.conf`](configs/51-bluetooth-fix.conf).
+---
 
-## Troubleshooting
+### Calls & Microphone on Linux (AirPods-Style Mic)
 
-- **Pairs but disconnects when playing** → the fix above. After changing it:
-  `systemctl --user restart wireplumber`.
-- **Phone shows no audio output** → check the sink: `wpctl status`
-  (PipeWire) or `pactl list sinks` (PulseAudio).
-- **No A2DP option, only phone-call audio** → the profile auto-switch is on;
-  your fix file is missing or not being read. Confirm the path matches
-  `/etc/wireplumber/wireplumber.conf.d/`.
-- **Want reset pairing** → `bluetoothctl remove <phone-mac>` then pair again.
+The PC exposes both `a2dp_sink` (for high-fidelity stereo music) and `hfp_hf` (Hands-Free unit for phone calls). During phone calls, your PC's microphone acts as the phone's microphone, and the caller's voice plays through your PC speakers.
 
-## Supported distros
+---
 
-| Distro | Package manager |
-| --- | --- |
-| Fedora / Nobara / RHEL / CentOS | dnf |
-| Ubuntu / Debian / Mint / Pop!_OS | apt |
-| Arch / Manjaro / EndeavourOS | pacman |
-| openSUSE | zypper |
-
-## Uninstall
+### Linux Uninstall
 
 ```bash
 sudo rm -f /etc/wireplumber/wireplumber.conf.d/51-bluetooth-fix.conf
 sudo systemctl --user restart wireplumber pipewire
-sudo systemctl disable --now bluetooth   # only if you didn't need it before
-sudo bluetoothctl system-alias ""        # reset the adapter name
+sudo systemctl disable --now bluetooth   # only if not needed otherwise
+sudo bluetoothctl system-alias ""        # reset adapter name
 ```
+
+---
 
 ## License
 
